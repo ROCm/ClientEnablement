@@ -1,0 +1,316 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" baseProfile="full"
+    width="3200" height="700"
+    viewBox="0 0 3200 700"
+    xmlns="http://www.w3.org/2000/svg">
+<style type="text/css"><![CDATA[
+/* Device styling: rectangles instead of circles */
+.node.server rect {
+  fill: #8bc34a;  /* green for servers */
+  stroke: black;
+  stroke-width: 1px;
+}
+.node.switch rect {
+  fill: #2196f3;  /* blue for switches */
+  stroke: black;
+  stroke-width: 1px;
+}
+.node text {
+  font-size: 12px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+.edge {
+  stroke: #999;
+  stroke-width: 2px;
+}
+/* Highlighted node (device) */
+.highlight rect {
+  fill: orange !important;
+}
+/* Highlighted edge style */
+.highlightEdge {
+  stroke: orange !important;
+  stroke-width: 3px;
+}
+/* Faded edge style */
+.fadeEdge {
+  opacity: 0.2;
+}
+/* Fixed control buttons at the top */
+.control-button {
+  cursor: pointer;
+  font-family: sans-serif;
+  font-size: 18px;
+  fill: #333;
+  user-select: none;
+}
+.control-button:hover {
+  fill: red;
+}
+]]></style>
+<script type="text/ecmascript"><![CDATA[
+function doSearch() {
+    var term = prompt("Enter device name (or substring):");
+    if (!term) return;
+    term = term.toLowerCase();
+    var nodes = document.querySelectorAll(".node");
+    var edges = document.querySelectorAll(".edge");
+    edges.forEach(function(e) {
+       e.classList.remove("highlightEdge");
+       e.classList.remove("fadeEdge");
+    });
+    var matchCount = 0;
+    var matchedNode = null;
+    nodes.forEach(function(n) {
+        n.classList.remove("highlight");
+        var dev = n.getAttribute("data-device");
+        if (dev && dev.toLowerCase().indexOf(term) !== -1) {
+            n.classList.add("highlight");
+            matchCount++;
+            matchedNode = n;
+        }
+    });
+    if (matchCount === 1 && matchedNode) {
+         var deviceName = matchedNode.getAttribute("data-device").toLowerCase();
+         edges.forEach(function(e) {
+             var local = e.getAttribute("data-local").toLowerCase();
+             var remote = e.getAttribute("data-remote").toLowerCase();
+             if (local === deviceName || remote === deviceName) {
+                 e.classList.add("highlightEdge");
+             } else {
+                 e.classList.add("fadeEdge");
+             }
+         });
+    }
+}
+function resetSearch() {
+    var nodes = document.querySelectorAll(".node");
+    nodes.forEach(function(n) {
+        n.classList.remove("highlight");
+    });
+    var edges = document.querySelectorAll(".edge");
+    edges.forEach(function(e) {
+        e.classList.remove("highlightEdge");
+        e.classList.remove("fadeEdge");
+    });
+}
+
+function buildGraph() {
+    var adjacency = {};
+    var edges = document.querySelectorAll('.edge');
+    edges.forEach(function(e) {
+        var local = e.getAttribute('data-local').toLowerCase();
+        var remote = e.getAttribute('data-remote').toLowerCase();
+        if (!adjacency[local]) adjacency[local] = [];
+        if (!adjacency[remote]) adjacency[remote] = [];
+        adjacency[local].push(remote);
+        adjacency[remote].push(local);
+    });
+    return adjacency;
+}
+
+function findPath(adjacency, start, end) {
+    // BFS
+    var queue = [start];
+    var visited = new Set([start]);
+    var parent = {};
+
+    while (queue.length > 0) {
+        var current = queue.shift();
+        if (current === end) {
+            // reconstruct path
+            var path = [end];
+            while (parent[path[path.length - 1]] !== undefined) {
+                path.push(parent[path[path.length - 1]]);
+            }
+            path.reverse();
+            return path;
+        }
+        if (adjacency[current]) {
+            adjacency[current].forEach(function(neighbor) {
+                if (!visited.has(neighbor)) {
+                    visited.add(neighbor);
+                    parent[neighbor] = current;
+                    queue.push(neighbor);
+                }
+            });
+        }
+    }
+    return null;
+}
+
+function doLinkSearch() {
+    var server1 = prompt('Enter first server name:');
+    if (!server1) return;
+    var server2 = prompt('Enter second server name:');
+    if (!server2) return;
+
+    server1 = server1.trim().toLowerCase();
+    server2 = server2.trim().toLowerCase();
+
+    var edges = document.querySelectorAll('.edge');
+    edges.forEach(function(e) {
+        e.classList.remove('highlightEdge');
+        e.classList.remove('fadeEdge');
+    });
+    var nodes = document.querySelectorAll('.node');
+    nodes.forEach(function(n) {
+        n.classList.remove('highlight');
+    });
+
+    var adjacency = buildGraph();
+    var path = findPath(adjacency, server1, server2);
+    if (!path) {
+        alert('No path found between ' + server1 + ' and ' + server2);
+        return;
+    }
+
+    // highlight the edges on this path
+    for (var i = 0; i < path.length - 1; i++) {
+        var a = path[i];
+        var b = path[i + 1];
+        edges.forEach(function(e) {
+            var local = e.getAttribute('data-local').toLowerCase();
+            var remote = e.getAttribute('data-remote').toLowerCase();
+            if ((local === a && remote === b) || (local === b && remote === a)) {
+                e.classList.add('highlightEdge');
+            }
+        });
+    }
+
+    // highlight the nodes on this path
+    nodes.forEach(function(n) {
+        var dev = n.getAttribute('data-device').toLowerCase();
+        if (path.indexOf(dev) !== -1) {
+            n.classList.add('highlight');
+        }
+    });
+}
+
+]]></script><g id="controls">
+  <text x="20" y="30" class="control-button" onclick="doSearch()">Search</text>
+  <text x="120" y="30" class="control-button" onclick="resetSearch()">Reset</text>
+  <text x="220" y="30" class="control-button" onclick="doLinkSearch()">Link</text>
+</g>
+<g id="flatGroup">
+<line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01a12b12-B.chi3" x1="272.7" y1="300.0" x2="1200.0" y2="500.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01a12b12-A.chi3" x1="272.7" y1="300.0" x2="600.0" y2="500.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="sf1-j8-p01e01.chi3.as20473.net" x1="272.7" y1="300.0" x2="176.5" y2="100.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="sf2-j8-p01e01.chi3.as20473.net" x1="272.7" y1="300.0" x2="352.9" y2="100.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="sf4-j8-p01e01.chi3.as20473.net" x1="272.7" y1="300.0" x2="705.9" y2="100.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="chi2374.ord.vultr.cpe.ice.amd.com" x1="272.7" y1="300.0" x2="272.7" y2="300.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="chi2374.ord.vultr.cpe.ice.amd.com" x1="272.7" y1="300.0" x2="272.7" y2="300.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="sf6-j8-p01e01.chi3.as20473.net" x1="272.7" y1="300.0" x2="1058.8" y2="100.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01a12b12-B.chi3" x1="272.7" y1="300.0" x2="1200.0" y2="500.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01a12b12-A.chi3" x1="272.7" y1="300.0" x2="600.0" y2="500.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="sf8-j8-p01e01.chi3.as20473.net" x1="272.7" y1="300.0" x2="1411.8" y2="100.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="chi2374.ord.vultr.cpe.ice.amd.com" x1="272.7" y1="300.0" x2="272.7" y2="300.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="sf5-j8-p01e01.chi3.as20473.net" x1="272.7" y1="300.0" x2="882.4" y2="100.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="chi2374.ord.vultr.cpe.ice.amd.com" x1="272.7" y1="300.0" x2="272.7" y2="300.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="chi2374.ord.vultr.cpe.ice.amd.com" x1="272.7" y1="300.0" x2="272.7" y2="300.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="chi2374.ord.vultr.cpe.ice.amd.com" x1="272.7" y1="300.0" x2="272.7" y2="300.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="chi2374.ord.vultr.cpe.ice.amd.com" x1="272.7" y1="300.0" x2="272.7" y2="300.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="chi2374.ord.vultr.cpe.ice.amd.com" x1="272.7" y1="300.0" x2="272.7" y2="300.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="chi2374.ord.vultr.cpe.ice.amd.com" x1="272.7" y1="300.0" x2="272.7" y2="300.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="chi2374.ord.vultr.cpe.ice.amd.com" x1="272.7" y1="300.0" x2="272.7" y2="300.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="chi2374.ord.vultr.cpe.ice.amd.com" x1="272.7" y1="300.0" x2="272.7" y2="300.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="chi2374.ord.vultr.cpe.ice.amd.com" x1="272.7" y1="300.0" x2="272.7" y2="300.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="sf3-j8-p01e01.chi3.as20473.net" x1="272.7" y1="300.0" x2="529.4" y2="100.0"/><line class="edge" data-local="chi2374.ord.vultr.cpe.ice.amd.com" data-remote="sf7-j8-p01e01.chi3.as20473.net" x1="272.7" y1="300.0" x2="1235.3" y2="100.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="sf4-j8-p01e01.chi3.as20473.net" x1="545.5" y1="300.0" x2="705.9" y2="100.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01a12b12-B.chi3" x1="545.5" y1="300.0" x2="1200.0" y2="500.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="sf6-j8-p01e01.chi3.as20473.net" x1="545.5" y1="300.0" x2="1058.8" y2="100.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01a12b12-A.chi3" x1="545.5" y1="300.0" x2="600.0" y2="500.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="chi2398.ord.vultr.cpe.ice.amd.com" x1="545.5" y1="300.0" x2="545.5" y2="300.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="chi2398.ord.vultr.cpe.ice.amd.com" x1="545.5" y1="300.0" x2="545.5" y2="300.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="chi2398.ord.vultr.cpe.ice.amd.com" x1="545.5" y1="300.0" x2="545.5" y2="300.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="chi2398.ord.vultr.cpe.ice.amd.com" x1="545.5" y1="300.0" x2="545.5" y2="300.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="chi2398.ord.vultr.cpe.ice.amd.com" x1="545.5" y1="300.0" x2="545.5" y2="300.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="chi2398.ord.vultr.cpe.ice.amd.com" x1="545.5" y1="300.0" x2="545.5" y2="300.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="chi2398.ord.vultr.cpe.ice.amd.com" x1="545.5" y1="300.0" x2="545.5" y2="300.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="chi2398.ord.vultr.cpe.ice.amd.com" x1="545.5" y1="300.0" x2="545.5" y2="300.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="chi2398.ord.vultr.cpe.ice.amd.com" x1="545.5" y1="300.0" x2="545.5" y2="300.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="chi2398.ord.vultr.cpe.ice.amd.com" x1="545.5" y1="300.0" x2="545.5" y2="300.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="chi2398.ord.vultr.cpe.ice.amd.com" x1="545.5" y1="300.0" x2="545.5" y2="300.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="sf2-j8-p01e01.chi3.as20473.net" x1="545.5" y1="300.0" x2="352.9" y2="100.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="sf3-j8-p01e01.chi3.as20473.net" x1="545.5" y1="300.0" x2="529.4" y2="100.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="sf1-j8-p01e01.chi3.as20473.net" x1="545.5" y1="300.0" x2="176.5" y2="100.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01a12b12-B.chi3" x1="545.5" y1="300.0" x2="1200.0" y2="500.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="chi2398.ord.vultr.cpe.ice.amd.com" x1="545.5" y1="300.0" x2="545.5" y2="300.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="sf7-j8-p01e01.chi3.as20473.net" x1="545.5" y1="300.0" x2="1235.3" y2="100.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="sf5-j8-p01e01.chi3.as20473.net" x1="545.5" y1="300.0" x2="882.4" y2="100.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01a12b12-A.chi3" x1="545.5" y1="300.0" x2="600.0" y2="500.0"/><line class="edge" data-local="chi2398.ord.vultr.cpe.ice.amd.com" data-remote="sf8-j8-p01e01.chi3.as20473.net" x1="545.5" y1="300.0" x2="1411.8" y2="100.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="sf4-j8-p01e05.chi3.as20473.net" x1="1363.6" y1="300.0" x2="2117.6" y2="100.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="sf7-j8-p01e05.chi3.as20473.net" x1="1363.6" y1="300.0" x2="2647.1" y2="100.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="sf6-j8-p01e05.chi3.as20473.net" x1="1363.6" y1="300.0" x2="2470.6" y2="100.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="sf8-j8-p01e05.chi3.as20473.net" x1="1363.6" y1="300.0" x2="2823.5" y2="100.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="sf5-j8-p01e05.chi3.as20473.net" x1="1363.6" y1="300.0" x2="2294.1" y2="100.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-B.chi3" x1="1363.6" y1="300.0" x2="2400.0" y2="500.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-A.chi3" x1="1363.6" y1="300.0" x2="1800.0" y2="500.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="sf2-j8-p01e05.chi3.as20473.net" x1="1363.6" y1="300.0" x2="1764.7" y2="100.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="sf1-j8-p01e05.chi3.as20473.net" x1="1363.6" y1="300.0" x2="1588.2" y2="100.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="sf3-j8-p01e05.chi3.as20473.net" x1="1363.6" y1="300.0" x2="1941.2" y2="100.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="chi2429.ord.vultr.cpe.ice.amd.com" x1="1363.6" y1="300.0" x2="1363.6" y2="300.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="chi2429.ord.vultr.cpe.ice.amd.com" x1="1363.6" y1="300.0" x2="1363.6" y2="300.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="chi2429.ord.vultr.cpe.ice.amd.com" x1="1363.6" y1="300.0" x2="1363.6" y2="300.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="chi2429.ord.vultr.cpe.ice.amd.com" x1="1363.6" y1="300.0" x2="1363.6" y2="300.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="chi2429.ord.vultr.cpe.ice.amd.com" x1="1363.6" y1="300.0" x2="1363.6" y2="300.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="chi2429.ord.vultr.cpe.ice.amd.com" x1="1363.6" y1="300.0" x2="1363.6" y2="300.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="chi2429.ord.vultr.cpe.ice.amd.com" x1="1363.6" y1="300.0" x2="1363.6" y2="300.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="chi2429.ord.vultr.cpe.ice.amd.com" x1="1363.6" y1="300.0" x2="1363.6" y2="300.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="chi2429.ord.vultr.cpe.ice.amd.com" x1="1363.6" y1="300.0" x2="1363.6" y2="300.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="chi2429.ord.vultr.cpe.ice.amd.com" x1="1363.6" y1="300.0" x2="1363.6" y2="300.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="chi2429.ord.vultr.cpe.ice.amd.com" x1="1363.6" y1="300.0" x2="1363.6" y2="300.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="chi2429.ord.vultr.cpe.ice.amd.com" x1="1363.6" y1="300.0" x2="1363.6" y2="300.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="chi2429.ord.vultr.cpe.ice.amd.com" x1="1363.6" y1="300.0" x2="1363.6" y2="300.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-B.chi3" x1="1363.6" y1="300.0" x2="2400.0" y2="500.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-A.chi3" x1="1363.6" y1="300.0" x2="1800.0" y2="500.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="sf4-j8-p01e05.chi3.as20473.net" x1="1363.6" y1="300.0" x2="2117.6" y2="100.0"/><line class="edge" data-local="chi2429.ord.vultr.cpe.ice.amd.com" data-remote="sf7-j8-p01e05.chi3.as20473.net" x1="1363.6" y1="300.0" x2="2647.1" y2="100.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="sf4-j8-p01e05.chi3.as20473.net" x1="1636.4" y1="300.0" x2="2117.6" y2="100.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="sf5-j8-p01e05.chi3.as20473.net" x1="1636.4" y1="300.0" x2="2294.1" y2="100.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="sf3-j8-p01e05.chi3.as20473.net" x1="1636.4" y1="300.0" x2="1941.2" y2="100.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="sf1-j8-p01e05.chi3.as20473.net" x1="1636.4" y1="300.0" x2="1588.2" y2="100.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-B.chi3" x1="1636.4" y1="300.0" x2="2400.0" y2="500.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-A.chi3" x1="1636.4" y1="300.0" x2="1800.0" y2="500.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="chi2430.ord.vultr.cpe.ice.amd.com" x1="1636.4" y1="300.0" x2="1636.4" y2="300.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="chi2430.ord.vultr.cpe.ice.amd.com" x1="1636.4" y1="300.0" x2="1636.4" y2="300.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="chi2430.ord.vultr.cpe.ice.amd.com" x1="1636.4" y1="300.0" x2="1636.4" y2="300.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="chi2430.ord.vultr.cpe.ice.amd.com" x1="1636.4" y1="300.0" x2="1636.4" y2="300.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="chi2430.ord.vultr.cpe.ice.amd.com" x1="1636.4" y1="300.0" x2="1636.4" y2="300.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="chi2430.ord.vultr.cpe.ice.amd.com" x1="1636.4" y1="300.0" x2="1636.4" y2="300.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="chi2430.ord.vultr.cpe.ice.amd.com" x1="1636.4" y1="300.0" x2="1636.4" y2="300.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="sf2-j8-p01e05.chi3.as20473.net" x1="1636.4" y1="300.0" x2="1764.7" y2="100.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="chi2430.ord.vultr.cpe.ice.amd.com" x1="1636.4" y1="300.0" x2="1636.4" y2="300.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="chi2430.ord.vultr.cpe.ice.amd.com" x1="1636.4" y1="300.0" x2="1636.4" y2="300.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="chi2430.ord.vultr.cpe.ice.amd.com" x1="1636.4" y1="300.0" x2="1636.4" y2="300.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="chi2430.ord.vultr.cpe.ice.amd.com" x1="1636.4" y1="300.0" x2="1636.4" y2="300.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="chi2430.ord.vultr.cpe.ice.amd.com" x1="1636.4" y1="300.0" x2="1636.4" y2="300.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="chi2430.ord.vultr.cpe.ice.amd.com" x1="1636.4" y1="300.0" x2="1636.4" y2="300.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="sf7-j8-p01e05.chi3.as20473.net" x1="1636.4" y1="300.0" x2="2647.1" y2="100.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="sf8-j8-p01e05.chi3.as20473.net" x1="1636.4" y1="300.0" x2="2823.5" y2="100.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-B.chi3" x1="1636.4" y1="300.0" x2="2400.0" y2="500.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-A.chi3" x1="1636.4" y1="300.0" x2="1800.0" y2="500.0"/><line class="edge" data-local="chi2430.ord.vultr.cpe.ice.amd.com" data-remote="sf6-j8-p01e05.chi3.as20473.net" x1="1636.4" y1="300.0" x2="2470.6" y2="100.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="sf2-j8-p01e05.chi3.as20473.net" x1="1909.1" y1="300.0" x2="1764.7" y2="100.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="sf6-j8-p01e05.chi3.as20473.net" x1="1909.1" y1="300.0" x2="2470.6" y2="100.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="sf3-j8-p01e05.chi3.as20473.net" x1="1909.1" y1="300.0" x2="1941.2" y2="100.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-B.chi3" x1="1909.1" y1="300.0" x2="2400.0" y2="500.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-A.chi3" x1="1909.1" y1="300.0" x2="1800.0" y2="500.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="sf7-j8-p01e05.chi3.as20473.net" x1="1909.1" y1="300.0" x2="2647.1" y2="100.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="chi2431.ord.vultr.cpe.ice.amd.com" x1="1909.1" y1="300.0" x2="1909.1" y2="300.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="sf4-j8-p01e05.chi3.as20473.net" x1="1909.1" y1="300.0" x2="2117.6" y2="100.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="chi2431.ord.vultr.cpe.ice.amd.com" x1="1909.1" y1="300.0" x2="1909.1" y2="300.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="sf8-j8-p01e05.chi3.as20473.net" x1="1909.1" y1="300.0" x2="2823.5" y2="100.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="sf5-j8-p01e05.chi3.as20473.net" x1="1909.1" y1="300.0" x2="2294.1" y2="100.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-B.chi3" x1="1909.1" y1="300.0" x2="2400.0" y2="500.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-A.chi3" x1="1909.1" y1="300.0" x2="1800.0" y2="500.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="sf1-j8-p01e05.chi3.as20473.net" x1="1909.1" y1="300.0" x2="1588.2" y2="100.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="sf6-j8-p01e05.chi3.as20473.net" x1="1909.1" y1="300.0" x2="2470.6" y2="100.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="chi2431.ord.vultr.cpe.ice.amd.com" x1="1909.1" y1="300.0" x2="1909.1" y2="300.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="chi2431.ord.vultr.cpe.ice.amd.com" x1="1909.1" y1="300.0" x2="1909.1" y2="300.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="chi2431.ord.vultr.cpe.ice.amd.com" x1="1909.1" y1="300.0" x2="1909.1" y2="300.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="chi2431.ord.vultr.cpe.ice.amd.com" x1="1909.1" y1="300.0" x2="1909.1" y2="300.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="chi2431.ord.vultr.cpe.ice.amd.com" x1="1909.1" y1="300.0" x2="1909.1" y2="300.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="chi2431.ord.vultr.cpe.ice.amd.com" x1="1909.1" y1="300.0" x2="1909.1" y2="300.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="chi2431.ord.vultr.cpe.ice.amd.com" x1="1909.1" y1="300.0" x2="1909.1" y2="300.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="chi2431.ord.vultr.cpe.ice.amd.com" x1="1909.1" y1="300.0" x2="1909.1" y2="300.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="chi2431.ord.vultr.cpe.ice.amd.com" x1="1909.1" y1="300.0" x2="1909.1" y2="300.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="chi2431.ord.vultr.cpe.ice.amd.com" x1="1909.1" y1="300.0" x2="1909.1" y2="300.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="sf2-j8-p01e05.chi3.as20473.net" x1="1909.1" y1="300.0" x2="1764.7" y2="100.0"/><line class="edge" data-local="chi2431.ord.vultr.cpe.ice.amd.com" data-remote="sf3-j8-p01e05.chi3.as20473.net" x1="1909.1" y1="300.0" x2="1941.2" y2="100.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="sf8-j8-p01e05.chi3.as20473.net" x1="2181.8" y1="300.0" x2="2823.5" y2="100.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="sf3-j8-p01e05.chi3.as20473.net" x1="2181.8" y1="300.0" x2="1941.2" y2="100.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-B.chi3" x1="2181.8" y1="300.0" x2="2400.0" y2="500.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-A.chi3" x1="2181.8" y1="300.0" x2="1800.0" y2="500.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="sf6-j8-p01e05.chi3.as20473.net" x1="2181.8" y1="300.0" x2="2470.6" y2="100.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="chi2437.ord.vultr.cpe.ice.amd.com" x1="2181.8" y1="300.0" x2="2181.8" y2="300.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="chi2437.ord.vultr.cpe.ice.amd.com" x1="2181.8" y1="300.0" x2="2181.8" y2="300.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="chi2437.ord.vultr.cpe.ice.amd.com" x1="2181.8" y1="300.0" x2="2181.8" y2="300.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="chi2437.ord.vultr.cpe.ice.amd.com" x1="2181.8" y1="300.0" x2="2181.8" y2="300.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="chi2437.ord.vultr.cpe.ice.amd.com" x1="2181.8" y1="300.0" x2="2181.8" y2="300.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="chi2437.ord.vultr.cpe.ice.amd.com" x1="2181.8" y1="300.0" x2="2181.8" y2="300.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="chi2437.ord.vultr.cpe.ice.amd.com" x1="2181.8" y1="300.0" x2="2181.8" y2="300.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="chi2437.ord.vultr.cpe.ice.amd.com" x1="2181.8" y1="300.0" x2="2181.8" y2="300.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="chi2437.ord.vultr.cpe.ice.amd.com" x1="2181.8" y1="300.0" x2="2181.8" y2="300.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="chi2437.ord.vultr.cpe.ice.amd.com" x1="2181.8" y1="300.0" x2="2181.8" y2="300.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="sf4-j8-p01e05.chi3.as20473.net" x1="2181.8" y1="300.0" x2="2117.6" y2="100.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="sf5-j8-p01e05.chi3.as20473.net" x1="2181.8" y1="300.0" x2="2294.1" y2="100.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="sf1-j8-p01e05.chi3.as20473.net" x1="2181.8" y1="300.0" x2="1588.2" y2="100.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-B.chi3" x1="2181.8" y1="300.0" x2="2400.0" y2="500.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="sf2-j8-p01e05.chi3.as20473.net" x1="2181.8" y1="300.0" x2="1764.7" y2="100.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-A.chi3" x1="2181.8" y1="300.0" x2="1800.0" y2="500.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="sf7-j8-p01e05.chi3.as20473.net" x1="2181.8" y1="300.0" x2="2647.1" y2="100.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="chi2437.ord.vultr.cpe.ice.amd.com" x1="2181.8" y1="300.0" x2="2181.8" y2="300.0"/><line class="edge" data-local="chi2437.ord.vultr.cpe.ice.amd.com" data-remote="chi2437.ord.vultr.cpe.ice.amd.com" x1="2181.8" y1="300.0" x2="2181.8" y2="300.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="sf8-j8-p01e05.chi3.as20473.net" x1="2454.5" y1="300.0" x2="2823.5" y2="100.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="sf7-j8-p01e05.chi3.as20473.net" x1="2454.5" y1="300.0" x2="2647.1" y2="100.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="sf5-j8-p01e05.chi3.as20473.net" x1="2454.5" y1="300.0" x2="2294.1" y2="100.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-B.chi3" x1="2454.5" y1="300.0" x2="2400.0" y2="500.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-A.chi3" x1="2454.5" y1="300.0" x2="1800.0" y2="500.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="sf1-j8-p01e05.chi3.as20473.net" x1="2454.5" y1="300.0" x2="1588.2" y2="100.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="chi2440.ord.vultr.cpe.ice.amd.com" x1="2454.5" y1="300.0" x2="2454.5" y2="300.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="chi2440.ord.vultr.cpe.ice.amd.com" x1="2454.5" y1="300.0" x2="2454.5" y2="300.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="sf2-j8-p01e05.chi3.as20473.net" x1="2454.5" y1="300.0" x2="1764.7" y2="100.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="chi2440.ord.vultr.cpe.ice.amd.com" x1="2454.5" y1="300.0" x2="2454.5" y2="300.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="sf6-j8-p01e05.chi3.as20473.net" x1="2454.5" y1="300.0" x2="2470.6" y2="100.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="sf3-j8-p01e05.chi3.as20473.net" x1="2454.5" y1="300.0" x2="1941.2" y2="100.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="sf4-j8-p01e05.chi3.as20473.net" x1="2454.5" y1="300.0" x2="2117.6" y2="100.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-B.chi3" x1="2454.5" y1="300.0" x2="2400.0" y2="500.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-A.chi3" x1="2454.5" y1="300.0" x2="1800.0" y2="500.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="chi2440.ord.vultr.cpe.ice.amd.com" x1="2454.5" y1="300.0" x2="2454.5" y2="300.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="chi2440.ord.vultr.cpe.ice.amd.com" x1="2454.5" y1="300.0" x2="2454.5" y2="300.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="chi2440.ord.vultr.cpe.ice.amd.com" x1="2454.5" y1="300.0" x2="2454.5" y2="300.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="chi2440.ord.vultr.cpe.ice.amd.com" x1="2454.5" y1="300.0" x2="2454.5" y2="300.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="chi2440.ord.vultr.cpe.ice.amd.com" x1="2454.5" y1="300.0" x2="2454.5" y2="300.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="chi2440.ord.vultr.cpe.ice.amd.com" x1="2454.5" y1="300.0" x2="2454.5" y2="300.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="chi2440.ord.vultr.cpe.ice.amd.com" x1="2454.5" y1="300.0" x2="2454.5" y2="300.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="chi2440.ord.vultr.cpe.ice.amd.com" x1="2454.5" y1="300.0" x2="2454.5" y2="300.0"/><line class="edge" data-local="chi2440.ord.vultr.cpe.ice.amd.com" data-remote="chi2440.ord.vultr.cpe.ice.amd.com" x1="2454.5" y1="300.0" x2="2454.5" y2="300.0"/><line class="edge" data-local="chi2501.ord.vultr.cpe.ice.amd.com" data-remote="sf6-j8-p01e01.chi3.as20473.net" x1="818.2" y1="300.0" x2="1058.8" y2="100.0"/><line class="edge" data-local="chi2501.ord.vultr.cpe.ice.amd.com" data-remote="sf2-j8-p01e01.chi3.as20473.net" x1="818.2" y1="300.0" x2="352.9" y2="100.0"/><line class="edge" data-local="chi2501.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01a12b12-A.chi3" x1="818.2" y1="300.0" x2="600.0" y2="500.0"/><line class="edge" data-local="chi2501.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01a12b12-B.chi3" x1="818.2" y1="300.0" x2="1200.0" y2="500.0"/><line class="edge" data-local="chi2501.ord.vultr.cpe.ice.amd.com" data-remote="sf7-j8-p01e01.chi3.as20473.net" x1="818.2" y1="300.0" x2="1235.3" y2="100.0"/><line class="edge" data-local="chi2501.ord.vultr.cpe.ice.amd.com" data-remote="sf1-j8-p01e01.chi3.as20473.net" x1="818.2" y1="300.0" x2="176.5" y2="100.0"/><line class="edge" data-local="chi2501.ord.vultr.cpe.ice.amd.com" data-remote="sf8-j8-p01e01.chi3.as20473.net" x1="818.2" y1="300.0" x2="1411.8" y2="100.0"/><line class="edge" data-local="chi2501.ord.vultr.cpe.ice.amd.com" data-remote="sf4-j8-p01e01.chi3.as20473.net" x1="818.2" y1="300.0" x2="705.9" y2="100.0"/><line class="edge" data-local="chi2501.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01a12b12-A.chi3" x1="818.2" y1="300.0" x2="600.0" y2="500.0"/><line class="edge" data-local="chi2501.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01a12b12-B.chi3" x1="818.2" y1="300.0" x2="1200.0" y2="500.0"/><line class="edge" data-local="chi2501.ord.vultr.cpe.ice.amd.com" data-remote="sf3-j8-p01e01.chi3.as20473.net" x1="818.2" y1="300.0" x2="529.4" y2="100.0"/><line class="edge" data-local="chi2501.ord.vultr.cpe.ice.amd.com" data-remote="sf5-j8-p01e01.chi3.as20473.net" x1="818.2" y1="300.0" x2="882.4" y2="100.0"/><line class="edge" data-local="chi2505.ord.vultr.cpe.ice.amd.com" data-remote="sf5-j8-p01e01.chi3.as20473.net" x1="1090.9" y1="300.0" x2="882.4" y2="100.0"/><line class="edge" data-local="chi2505.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01a12b12-A.chi3" x1="1090.9" y1="300.0" x2="600.0" y2="500.0"/><line class="edge" data-local="chi2505.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01a12b12-B.chi3" x1="1090.9" y1="300.0" x2="1200.0" y2="500.0"/><line class="edge" data-local="chi2505.ord.vultr.cpe.ice.amd.com" data-remote="sf6-j8-p01e01.chi3.as20473.net" x1="1090.9" y1="300.0" x2="1058.8" y2="100.0"/><line class="edge" data-local="chi2505.ord.vultr.cpe.ice.amd.com" data-remote="sf1-j8-p01e01.chi3.as20473.net" x1="1090.9" y1="300.0" x2="176.5" y2="100.0"/><line class="edge" data-local="chi2505.ord.vultr.cpe.ice.amd.com" data-remote="sf7-j8-p01e01.chi3.as20473.net" x1="1090.9" y1="300.0" x2="1235.3" y2="100.0"/><line class="edge" data-local="chi2505.ord.vultr.cpe.ice.amd.com" data-remote="sf3-j8-p01e01.chi3.as20473.net" x1="1090.9" y1="300.0" x2="529.4" y2="100.0"/><line class="edge" data-local="chi2505.ord.vultr.cpe.ice.amd.com" data-remote="sf2-j8-p01e01.chi3.as20473.net" x1="1090.9" y1="300.0" x2="352.9" y2="100.0"/><line class="edge" data-local="chi2505.ord.vultr.cpe.ice.amd.com" data-remote="sf4-j8-p01e01.chi3.as20473.net" x1="1090.9" y1="300.0" x2="705.9" y2="100.0"/><line class="edge" data-local="chi2505.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01a12b12-A.chi3" x1="1090.9" y1="300.0" x2="600.0" y2="500.0"/><line class="edge" data-local="chi2505.ord.vultr.cpe.ice.amd.com" data-remote="sf8-j8-p01e01.chi3.as20473.net" x1="1090.9" y1="300.0" x2="1411.8" y2="100.0"/><line class="edge" data-local="chi2505.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01a12b12-B.chi3" x1="1090.9" y1="300.0" x2="1200.0" y2="500.0"/><line class="edge" data-local="chi2505.ord.vultr.cpe.ice.amd.com" data-remote="sf5-j8-p01e01.chi3.as20473.net" x1="1090.9" y1="300.0" x2="882.4" y2="100.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-B.chi3" x1="2727.3" y1="300.0" x2="2400.0" y2="500.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-A.chi3" x1="2727.3" y1="300.0" x2="1800.0" y2="500.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="sf2-j8-p01e05.chi3.as20473.net" x1="2727.3" y1="300.0" x2="1764.7" y2="100.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="sf5-j8-p01e05.chi3.as20473.net" x1="2727.3" y1="300.0" x2="2294.1" y2="100.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="chi2506.ord.vultr.cpe.ice.amd.com" x1="2727.3" y1="300.0" x2="2727.3" y2="300.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="chi2506.ord.vultr.cpe.ice.amd.com" x1="2727.3" y1="300.0" x2="2727.3" y2="300.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="chi2506.ord.vultr.cpe.ice.amd.com" x1="2727.3" y1="300.0" x2="2727.3" y2="300.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="chi2506.ord.vultr.cpe.ice.amd.com" x1="2727.3" y1="300.0" x2="2727.3" y2="300.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="chi2506.ord.vultr.cpe.ice.amd.com" x1="2727.3" y1="300.0" x2="2727.3" y2="300.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="chi2506.ord.vultr.cpe.ice.amd.com" x1="2727.3" y1="300.0" x2="2727.3" y2="300.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="chi2506.ord.vultr.cpe.ice.amd.com" x1="2727.3" y1="300.0" x2="2727.3" y2="300.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="chi2506.ord.vultr.cpe.ice.amd.com" x1="2727.3" y1="300.0" x2="2727.3" y2="300.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="chi2506.ord.vultr.cpe.ice.amd.com" x1="2727.3" y1="300.0" x2="2727.3" y2="300.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="chi2506.ord.vultr.cpe.ice.amd.com" x1="2727.3" y1="300.0" x2="2727.3" y2="300.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="sf4-j8-p01e05.chi3.as20473.net" x1="2727.3" y1="300.0" x2="2117.6" y2="100.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="sf1-j8-p01e05.chi3.as20473.net" x1="2727.3" y1="300.0" x2="1588.2" y2="100.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-B.chi3" x1="2727.3" y1="300.0" x2="2400.0" y2="500.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="ds1-m4-p01c02d02-A.chi3" x1="2727.3" y1="300.0" x2="1800.0" y2="500.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="sf7-j8-p01e05.chi3.as20473.net" x1="2727.3" y1="300.0" x2="2647.1" y2="100.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="sf8-j8-p01e05.chi3.as20473.net" x1="2727.3" y1="300.0" x2="2823.5" y2="100.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="chi2506.ord.vultr.cpe.ice.amd.com" x1="2727.3" y1="300.0" x2="2727.3" y2="300.0"/><line class="edge" data-local="chi2506.ord.vultr.cpe.ice.amd.com" data-remote="sf6-j8-p01e05.chi3.as20473.net" x1="2727.3" y1="300.0" x2="2470.6" y2="100.0"/><g class="node server" data-device="chi2440.ord.vultr.cpe.ice.amd.com" data-type="server" data-x="2454.5" data-y="300.0" transform="translate(2454.5,300.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: chi2440.ord.vultr.cpe.ice.amd.com
+Type: server
+Rack: 2</title><text dy="4">chi2440.ord.vultr.cpe.ice.amd.com</text></g>
+<g class="node server" data-device="chi2374.ord.vultr.cpe.ice.amd.com" data-type="server" data-x="272.7" data-y="300.0" transform="translate(272.7,300.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: chi2374.ord.vultr.cpe.ice.amd.com
+Type: server
+Rack: 1</title><text dy="4">chi2374.ord.vultr.cpe.ice.amd.com</text></g>
+<g class="node server" data-device="chi2437.ord.vultr.cpe.ice.amd.com" data-type="server" data-x="2181.8" data-y="300.0" transform="translate(2181.8,300.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: chi2437.ord.vultr.cpe.ice.amd.com
+Type: server
+Rack: 2</title><text dy="4">chi2437.ord.vultr.cpe.ice.amd.com</text></g>
+<g class="node switch" data-device="sf5-j8-p01e01.chi3.as20473.net" data-type="switch" data-x="882.4" data-y="100.0" transform="translate(882.4,100.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: sf5-j8-p01e01.chi3.as20473.net
+Type: switch
+Rack: 1</title><text dy="4">sf5-j8-p01e01.chi3.as20473.net</text></g>
+<g class="node switch" data-device="sf4-j8-p01e05.chi3.as20473.net" data-type="switch" data-x="2117.6" data-y="100.0" transform="translate(2117.6,100.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: sf4-j8-p01e05.chi3.as20473.net
+Type: switch
+Rack: 2</title><text dy="4">sf4-j8-p01e05.chi3.as20473.net</text></g>
+<g class="node switch" data-device="sf6-j8-p01e05.chi3.as20473.net" data-type="switch" data-x="2470.6" data-y="100.0" transform="translate(2470.6,100.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: sf6-j8-p01e05.chi3.as20473.net
+Type: switch
+Rack: 2</title><text dy="4">sf6-j8-p01e05.chi3.as20473.net</text></g>
+<g class="node server" data-device="chi2398.ord.vultr.cpe.ice.amd.com" data-type="server" data-x="545.5" data-y="300.0" transform="translate(545.5,300.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: chi2398.ord.vultr.cpe.ice.amd.com
+Type: server
+Rack: 1</title><text dy="4">chi2398.ord.vultr.cpe.ice.amd.com</text></g>
+<g class="node switch" data-device="sf2-j8-p01e01.chi3.as20473.net" data-type="switch" data-x="352.9" data-y="100.0" transform="translate(352.9,100.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: sf2-j8-p01e01.chi3.as20473.net
+Type: switch
+Rack: 1</title><text dy="4">sf2-j8-p01e01.chi3.as20473.net</text></g>
+<g class="node switch" data-device="sf6-j8-p01e01.chi3.as20473.net" data-type="switch" data-x="1058.8" data-y="100.0" transform="translate(1058.8,100.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: sf6-j8-p01e01.chi3.as20473.net
+Type: switch
+Rack: 1</title><text dy="4">sf6-j8-p01e01.chi3.as20473.net</text></g>
+<g class="node switch" data-device="ds1-m4-p01c02d02-B.chi3" data-type="switch" data-x="2400.0" data-y="500.0" transform="translate(2400.0,500.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: ds1-m4-p01c02d02-B.chi3
+Type: switch</title><text dy="4">ds1-m4-p01c02d02-B.chi3</text></g>
+<g class="node switch" data-device="sf3-j8-p01e01.chi3.as20473.net" data-type="switch" data-x="529.4" data-y="100.0" transform="translate(529.4,100.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: sf3-j8-p01e01.chi3.as20473.net
+Type: switch
+Rack: 1</title><text dy="4">sf3-j8-p01e01.chi3.as20473.net</text></g>
+<g class="node switch" data-device="ds1-m4-p01a12b12-B.chi3" data-type="switch" data-x="1200.0" data-y="500.0" transform="translate(1200.0,500.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: ds1-m4-p01a12b12-B.chi3
+Type: switch</title><text dy="4">ds1-m4-p01a12b12-B.chi3</text></g>
+<g class="node switch" data-device="ds1-m4-p01a12b12-A.chi3" data-type="switch" data-x="600.0" data-y="500.0" transform="translate(600.0,500.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: ds1-m4-p01a12b12-A.chi3
+Type: switch</title><text dy="4">ds1-m4-p01a12b12-A.chi3</text></g>
+<g class="node switch" data-device="ds1-m4-p01c02d02-A.chi3" data-type="switch" data-x="1800.0" data-y="500.0" transform="translate(1800.0,500.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: ds1-m4-p01c02d02-A.chi3
+Type: switch</title><text dy="4">ds1-m4-p01c02d02-A.chi3</text></g>
+<g class="node switch" data-device="sf1-j8-p01e01.chi3.as20473.net" data-type="switch" data-x="176.5" data-y="100.0" transform="translate(176.5,100.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: sf1-j8-p01e01.chi3.as20473.net
+Type: switch
+Rack: 1</title><text dy="4">sf1-j8-p01e01.chi3.as20473.net</text></g>
+<g class="node server" data-device="chi2429.ord.vultr.cpe.ice.amd.com" data-type="server" data-x="1363.6" data-y="300.0" transform="translate(1363.6,300.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: chi2429.ord.vultr.cpe.ice.amd.com
+Type: server
+Rack: 2</title><text dy="4">chi2429.ord.vultr.cpe.ice.amd.com</text></g>
+<g class="node switch" data-device="sf3-j8-p01e05.chi3.as20473.net" data-type="switch" data-x="1941.2" data-y="100.0" transform="translate(1941.2,100.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: sf3-j8-p01e05.chi3.as20473.net
+Type: switch
+Rack: 2</title><text dy="4">sf3-j8-p01e05.chi3.as20473.net</text></g>
+<g class="node switch" data-device="sf7-j8-p01e05.chi3.as20473.net" data-type="switch" data-x="2647.1" data-y="100.0" transform="translate(2647.1,100.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: sf7-j8-p01e05.chi3.as20473.net
+Type: switch
+Rack: 2</title><text dy="4">sf7-j8-p01e05.chi3.as20473.net</text></g>
+<g class="node server" data-device="chi2501.ord.vultr.cpe.ice.amd.com" data-type="server" data-x="818.2" data-y="300.0" transform="translate(818.2,300.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: chi2501.ord.vultr.cpe.ice.amd.com
+Type: server
+Rack: 1</title><text dy="4">chi2501.ord.vultr.cpe.ice.amd.com</text></g>
+<g class="node switch" data-device="sf4-j8-p01e01.chi3.as20473.net" data-type="switch" data-x="705.9" data-y="100.0" transform="translate(705.9,100.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: sf4-j8-p01e01.chi3.as20473.net
+Type: switch
+Rack: 1</title><text dy="4">sf4-j8-p01e01.chi3.as20473.net</text></g>
+<g class="node switch" data-device="sf2-j8-p01e05.chi3.as20473.net" data-type="switch" data-x="1764.7" data-y="100.0" transform="translate(1764.7,100.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: sf2-j8-p01e05.chi3.as20473.net
+Type: switch
+Rack: 2</title><text dy="4">sf2-j8-p01e05.chi3.as20473.net</text></g>
+<g class="node switch" data-device="sf5-j8-p01e05.chi3.as20473.net" data-type="switch" data-x="2294.1" data-y="100.0" transform="translate(2294.1,100.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: sf5-j8-p01e05.chi3.as20473.net
+Type: switch
+Rack: 2</title><text dy="4">sf5-j8-p01e05.chi3.as20473.net</text></g>
+<g class="node server" data-device="chi2505.ord.vultr.cpe.ice.amd.com" data-type="server" data-x="1090.9" data-y="300.0" transform="translate(1090.9,300.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: chi2505.ord.vultr.cpe.ice.amd.com
+Type: server
+Rack: 1</title><text dy="4">chi2505.ord.vultr.cpe.ice.amd.com</text></g>
+<g class="node server" data-device="chi2430.ord.vultr.cpe.ice.amd.com" data-type="server" data-x="1636.4" data-y="300.0" transform="translate(1636.4,300.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: chi2430.ord.vultr.cpe.ice.amd.com
+Type: server
+Rack: 2</title><text dy="4">chi2430.ord.vultr.cpe.ice.amd.com</text></g>
+<g class="node server" data-device="chi2431.ord.vultr.cpe.ice.amd.com" data-type="server" data-x="1909.1" data-y="300.0" transform="translate(1909.1,300.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: chi2431.ord.vultr.cpe.ice.amd.com
+Type: server
+Rack: 2</title><text dy="4">chi2431.ord.vultr.cpe.ice.amd.com</text></g>
+<g class="node server" data-device="chi2506.ord.vultr.cpe.ice.amd.com" data-type="server" data-x="2727.3" data-y="300.0" transform="translate(2727.3,300.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: chi2506.ord.vultr.cpe.ice.amd.com
+Type: server
+Rack: 2</title><text dy="4">chi2506.ord.vultr.cpe.ice.amd.com</text></g>
+<g class="node switch" data-device="sf7-j8-p01e01.chi3.as20473.net" data-type="switch" data-x="1235.3" data-y="100.0" transform="translate(1235.3,100.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: sf7-j8-p01e01.chi3.as20473.net
+Type: switch
+Rack: 1</title><text dy="4">sf7-j8-p01e01.chi3.as20473.net</text></g>
+<g class="node switch" data-device="sf1-j8-p01e05.chi3.as20473.net" data-type="switch" data-x="1588.2" data-y="100.0" transform="translate(1588.2,100.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: sf1-j8-p01e05.chi3.as20473.net
+Type: switch
+Rack: 2</title><text dy="4">sf1-j8-p01e05.chi3.as20473.net</text></g>
+<g class="node switch" data-device="sf8-j8-p01e01.chi3.as20473.net" data-type="switch" data-x="1411.8" data-y="100.0" transform="translate(1411.8,100.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: sf8-j8-p01e01.chi3.as20473.net
+Type: switch
+Rack: 1</title><text dy="4">sf8-j8-p01e01.chi3.as20473.net</text></g>
+<g class="node switch" data-device="sf8-j8-p01e05.chi3.as20473.net" data-type="switch" data-x="2823.5" data-y="100.0" transform="translate(2823.5,100.0)"><rect x="-20" y="-10" width="40" height="20"></rect>
+<title>Device: sf8-j8-p01e05.chi3.as20473.net
+Type: switch
+Rack: 2</title><text dy="4">sf8-j8-p01e05.chi3.as20473.net</text></g>
+</g>
+</svg>
